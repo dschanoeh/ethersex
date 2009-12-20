@@ -21,23 +21,81 @@
 */
 
 #include <inttypes.h>
+#include <avr/io.h>
 
+
+#include <avr/pgmspace.h>
+#include "core/eeprom.h"
 #include "services/twitter_bot/twitter_bot.h"
 #include "services/clock/clock.h"
+#include "hardware/onewire/onewire.h"
+#include "core/bit-macros.h"
+
+struct ow_rom_code_t rom, *romptr;
+
 
 uint32_t last_post_time = 0;
 
 void twitter_bot_init()
 {
-	DDRD |= 0b10000000;
+
+	//generate rom code
+	uint8_t *addr = rom->bytewise;
+	uint8_t end;
+	int16_t ret = sscanf_P("1028080102080064", PSTR("%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%c"),
+        	addr+0, addr+1, addr+2, addr+3,
+        	addr+4, addr+5, addr+6, addr+7,
+        	&end);
 }
 
 void twitter_bot_periodic()
 {
 	uint32_t current_time = clock_get_time();
+	int16_t ret;
+
 	if(current_time > (last_post_time) + POSTING_INTERVAL)
 	{
-		TW_BOT_DEBUG("it's time to post");
+		TW_BOT_DEBUG("it's time to post\n");
+
+		if(ow_temp_sensor(&rom))
+		{
+			romptr = (ret < 0) ? NULL : &rom;
+			uint8_t sreg = SREG;
+    			cli();
+			ret = ow_temp_start_convert_wait(romptr);
+			SREG = sreg;
+
+			if(ret==1)
+			{
+				uint8_t sreg = SREG;
+				cli();
+				struct ow_temp_scratchpad_t sp;
+				ret = ow_temp_read_scratchpad(&rom, &sp);
+				SREG = sreg;
+
+				if(ret==1)
+				{
+					uint16_t temp = ow_temp_normalize(&rom, &sp);
+				}
+				else
+				{
+					TW_BOT_DEBUG("could not read scratchpad\n");
+				}
+			}
+			else
+			{
+				TW_BOT_DEBUG("converting failed\n");
+			}
+
+		}
+		else
+		{
+			TW_BOT_DEBUG("this is no temperature sensor\n");
+		}	
+
+		
+
+
 	}
 }
 

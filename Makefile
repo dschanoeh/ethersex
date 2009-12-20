@@ -79,7 +79,7 @@ SUBDIRS += services/tftp
 SUBDIRS += services/upnp
 SUBDIRS += services/appsample
 SUBDIRS += services/watchcat
-SUBDIRS += hardware/camera
+SUBDIRS += services/twitter_bot
 
 rootbuild=t
 
