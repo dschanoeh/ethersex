@@ -1,1 +1,1 @@
-dep_bool_menu 'Twitter bot' TWITTER_BOT_SUPPORT $TWITTER_SUPPORT
+dep_bool_menu 'Twitter bot' TWITTER_BOT_SUPPORT
