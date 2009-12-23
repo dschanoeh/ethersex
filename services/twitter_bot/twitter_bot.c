@@ -22,30 +22,33 @@
 
 #include <inttypes.h>
 #include <avr/io.h>
-
-
 #include <avr/pgmspace.h>
+#include <avr/eeprom.h>
+#include <avr/interrupt.h>
+
+
 #include "core/eeprom.h"
 #include "services/twitter_bot/twitter_bot.h"
 #include "services/clock/clock.h"
 #include "hardware/onewire/onewire.h"
 #include "core/bit-macros.h"
+#include "core/eeprom.h"
 
-struct ow_rom_code_t rom, *romptr;
+struct ow_rom_code_t *rom, *romptr;
 
 
 uint32_t last_post_time = 0;
 
 void twitter_bot_init()
 {
-
 	//generate rom code
 	uint8_t *addr = rom->bytewise;
 	uint8_t end;
-	int16_t ret = sscanf_P("1028080102080064", PSTR("%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%c"),
+	sscanf_P(SENSOR_ID, PSTR("%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%c"),
         	addr+0, addr+1, addr+2, addr+3,
         	addr+4, addr+5, addr+6, addr+7,
         	&end);
+	TW_BOT_DEBUG("rom address of sensor is %x\n",addr);
 }
 
 void twitter_bot_periodic()
@@ -53,13 +56,14 @@ void twitter_bot_periodic()
 	uint32_t current_time = clock_get_time();
 	int16_t ret;
 
+	/*check if we need to post a new message*/
 	if(current_time > (last_post_time) + POSTING_INTERVAL)
 	{
 		TW_BOT_DEBUG("it's time to post\n");
-
+		/*check if this is really a temperature sensor*/
 		if(ow_temp_sensor(&rom))
 		{
-			romptr = (ret < 0) ? NULL : &rom;
+			romptr = &rom;
 			uint8_t sreg = SREG;
     			cli();
 			ret = ow_temp_start_convert_wait(romptr);
@@ -76,6 +80,7 @@ void twitter_bot_periodic()
 				if(ret==1)
 				{
 					uint16_t temp = ow_temp_normalize(&rom, &sp);
+					TW_BOT_DEBUG("received temperature %i C\n",temp);
 				}
 				else
 				{
