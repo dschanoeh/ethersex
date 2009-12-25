@@ -34,21 +34,49 @@
 #include "core/bit-macros.h"
 #include "core/eeprom.h"
 
-struct ow_rom_code_t *rom, *romptr;
+
 
 
 uint32_t last_post_time = 0;
+uint8_t twitter_bot_error = 0;
+
+struct ow_rom_code_t rom, *romptr;
 
 void twitter_bot_init()
 {
-	//generate rom code
-	uint8_t *addr = rom->bytewise;
-	uint8_t end;
-	sscanf_P(SENSOR_ID, PSTR("%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%c"),
-        	addr+0, addr+1, addr+2, addr+3,
-        	addr+4, addr+5, addr+6, addr+7,
-        	&end);
-	TW_BOT_DEBUG("rom address of sensor is %x\n",addr);
+	TW_BOT_DEBUG("searching for temperature sensor\n");
+	int8_t ret;
+	ret = ow_search_rom(1);
+	
+	do
+	{
+		if(ret == 0)
+		{
+			twitter_bot_error = 1;
+			TW_BOT_DEBUG("no temperature device has been found\n");
+			break;
+		}
+		else if(ret == -1)
+		{
+			twitter_bot_error = 1;
+			TW_BOT_DEBUG("there is no device on the bus\n");
+			break;
+		}
+		else
+		{
+			if(ow_temp_sensor(&(ow_global.current_rom)))
+			{
+				TW_BOT_DEBUG("found sensor\n");
+				rom = ow_global.current_rom;
+				break;
+			}
+			ret = ow_search_rom(0);
+		}
+		ret = ow_search_rom(1);
+	}
+	while(1);
+
+	
 }
 
 void twitter_bot_periodic()
@@ -60,13 +88,14 @@ void twitter_bot_periodic()
 	if(current_time > (last_post_time) + POSTING_INTERVAL)
 	{
 		TW_BOT_DEBUG("it's time to post\n");
+
 		/*check if this is really a temperature sensor*/
 		if(ow_temp_sensor(&rom))
 		{
-			romptr = &rom;
+			
 			uint8_t sreg = SREG;
     			cli();
-			ret = ow_temp_start_convert_wait(romptr);
+			ret = ow_temp_start_convert_wait(&rom);
 			SREG = sreg;
 
 			if(ret==1)
@@ -79,8 +108,13 @@ void twitter_bot_periodic()
 
 				if(ret==1)
 				{
-					uint16_t temp = ow_temp_normalize(&rom, &sp);
-					TW_BOT_DEBUG("received temperature %i C\n",temp);
+					uint16_t t = ow_temp_normalize(&rom, &sp);
+					TW_BOT_DEBUG("received temperature %d.%d C\n",HI8(t), LO8(t) > 0 ? 5 : 0);
+					char message[140];
+					sprintf(&message,"current temperature is %d.%d",HI8(t), LO8(t) > 0 ? 5 : 0);
+					twitter_send(&message);
+
+					last_post_time = current_time;
 				}
 				else
 				{

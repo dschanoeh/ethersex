@@ -21,7 +21,7 @@
 */
 
 #define POSTING_INTERVAL 300 //in seconds
-#define SENSOR_ID "1028080102080064" //id of the onewire sensor
+#define DEBUG_TWITTER_BOT
 
 void twitter_bot_init();
 void twitter_bot_periodic();
